@@ -1,0 +1,26 @@
+{
+  "productName": "JIRA缺陷自动创建工具",
+  "version": "1.0.0",
+  "identifier": "com.jira-defect-tool",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "JIRA缺陷自动创建工具",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "center": true,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}

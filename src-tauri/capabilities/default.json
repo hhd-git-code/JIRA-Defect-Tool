@@ -1,0 +1,30 @@
+{
+  "identifier": "default",
+  "description": "Default permissions for the app",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "store:default",
+    "store:allow-get",
+    "store:allow-set",
+    "store:allow-save",
+    "store:allow-load",
+    "dialog:default",
+    "dialog:allow-open",
+    "opener:default",
+    "dialog:allow-save",
+    "fs:default",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-exists",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://fanyi-api.baidu.com/**" },
+        { "url": "https://openapi.youdao.com/**" }
+      ]
+    },
+    "http:allow-fetch",
+    "http:allow-fetch-send"
+  ]
+}
