@@ -1,7 +1,7 @@
 mod commands;
 mod utils;
 
-use commands::{ai, crypto, jira};
+use commands::{adb, ai, crypto, jira};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -11,6 +11,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(adb::RunningProcesses::default())
         .invoke_handler(tauri::generate_handler![
             crypto::encrypt_token,
             crypto::decrypt_token,
@@ -26,6 +27,16 @@ pub fn run() {
             ai::ai_stream_chat,
             ai::fetch_url_content,
             ai::fetch_confluence_content,
+            adb::adb_devices,
+            adb::adb_connect,
+            adb::adb_root,
+            adb::adb_screenshot,
+            adb::adb_start_recording,
+            adb::adb_stop_recording,
+            adb::adb_key_back,
+            adb::adb_start_scrcpy,
+            adb::adb_start_logcat,
+            adb::adb_stop_logcat,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

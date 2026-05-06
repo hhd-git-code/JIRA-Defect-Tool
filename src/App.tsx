@@ -5,6 +5,7 @@ import { SettingOutlined } from "@ant-design/icons";
 import zhCN from "antd/locale/zh_CN";
 import DefectForm from "./pages/defect-form";
 import PrdTestCase from "./pages/prd-test-case";
+import AdbCommands from "./pages/adb-commands";
 import Settings from "./pages/settings";
 
 const { Header, Content } = Layout;
@@ -23,6 +24,7 @@ function MainLayout() {
           items={[
             { key: "defect", label: "缺陷自动创建" },
             { key: "prd", label: "测试用例自动创建" },
+            { key: "adb", label: "测试常用命令" },
           ]}
         />
         <Button icon={<SettingOutlined />} type="text" onClick={() => navigate("/settings")}>设置</Button>
@@ -30,6 +32,7 @@ function MainLayout() {
       <Content style={{ padding: 24, maxWidth: 1200, margin: "0 auto", width: "100%" }}>
         {activeTab === "defect" && <DefectForm />}
         {activeTab === "prd" && <PrdTestCase />}
+        {activeTab === "adb" && <AdbCommands />}
       </Content>
     </Layout>
   );
