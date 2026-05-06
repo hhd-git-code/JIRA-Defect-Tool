@@ -1,5 +1,6 @@
 import type { AppConfig, DictEntry } from '../types/config';
 import { createDefaultConfig } from '../types/config';
+import type { DefectTemplate } from '../types/template';
 
 let store: any = null;
 
@@ -102,5 +103,17 @@ export async function saveDraft(draft: string): Promise<void> {
 export async function clearDraft(): Promise<void> {
   const s = await getStore();
   await s.delete('defectDraft');
+  await s.save();
+}
+
+export async function loadTemplates(): Promise<DefectTemplate[]> {
+  const s = await getStore();
+  const templates = await s.get('defectTemplates') as DefectTemplate[] | null;
+  return templates || [];
+}
+
+export async function saveTemplates(templates: DefectTemplate[]): Promise<void> {
+  const s = await getStore();
+  await s.set('defectTemplates', templates);
   await s.save();
 }

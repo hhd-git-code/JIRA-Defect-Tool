@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Layout, Button, message, Divider, Modal, Typography } from 'antd';
-import { SettingOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { Layout, Button, message, Divider, Modal, Typography, Select } from 'antd';
+import { SettingOutlined, ThunderboltOutlined, SaveOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import DefectFields from '../components/defect-fields';
 import AttachmentUpload from '../components/attachment-upload';
 import ImportUpload from '../components/import-upload';
 import TranslatePreview from '../components/translate-preview';
+import SaveTemplateModal from '../components/save-template-modal';
+import TemplateManager from '../components/template-manager';
 import { SingleResult } from '../components/result-panel';
 import BatchGuide from '../pages/batch-guide';
 import { useDefectStore } from '../stores/defect-store';
@@ -15,12 +17,14 @@ import { translateDefect, resetOnlineState, isOnlineConfigValid } from '../servi
 import { dictService } from '../services/dict-service';
 import { formatDescription } from '../utils/format-description';
 import * as jiraApi from '../services/jira-api';
-import { loadConfig, loadDraft, saveDraft, clearDraft } from '../stores/config-store';
+import { loadConfig, loadDraft, saveDraft, clearDraft, loadTemplates, saveTemplates } from '../stores/config-store';
 import { buildPriorityOptions, type PriorityOption } from '../constants/priority';
 import type { JiraPriority } from '../services/jira-api';
 import type { DefectData, TranslatedDefect, ValidationError } from '../types/defect';
 import type { ParseResult } from '../services/table-parser';
 import type { AppConfig } from '../types/config';
+import type { DefectTemplate, TemplateData } from '../types/template';
+import { applyTemplateToDefect, hasFormData } from '../types/template';
 
 const { Header, Content } = Layout;
 const { Text } = Typography;
@@ -40,6 +44,9 @@ const DefectForm: React.FC = () => {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [priorityOptions, setPriorityOptions] = useState<PriorityOption[]>([]);
   const [jiraPriorities, setJiraPriorities] = useState<JiraPriority[]>([]);
+  const [templates, setTemplates] = useState<DefectTemplate[]>([]);
+  const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false);
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
 
   useEffect(() => {
     dictService.loadAll().catch(() => {});
@@ -54,6 +61,7 @@ const DefectForm: React.FC = () => {
           .catch(() => {});
       }
     }).catch(() => {});
+    loadTemplates().then(setTemplates).catch(() => {});
   }, []);
 
   const draftPrompted = useRef(false);
@@ -194,6 +202,47 @@ const DefectForm: React.FC = () => {
     resetDefect();
   }, [resetDefect]);
 
+  // 应用模板
+  const handleApplyTemplate = useCallback((template: DefectTemplate) => {
+    // 检查表单是否有内容
+    if (hasFormData(currentDefect)) {
+      Modal.confirm({
+        title: '覆盖确认',
+        content: '当前表单已有内容，应用模板将覆盖，是否继续？',
+        okText: '继续',
+        cancelText: '取消',
+        onOk: () => {
+          setCurrentDefect(applyTemplateToDefect(currentDefect, template.data));
+          message.success(`已应用模板「${template.name}」`);
+        },
+      });
+    } else {
+      setCurrentDefect(applyTemplateToDefect(currentDefect, template.data));
+      message.success(`已应用模板「${template.name}」`);
+    }
+  }, [currentDefect, setCurrentDefect]);
+
+  // 保存模板
+  const handleSaveTemplate = useCallback(async (templateData: { name: string; data: TemplateData }) => {
+    const newTemplate: DefectTemplate = {
+      id: crypto.randomUUID(),
+      name: templateData.name,
+      data: templateData.data,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    const updated = [...templates, newTemplate];
+    await saveTemplates(updated);
+    setTemplates(updated);
+    message.success('模板已保存');
+  }, [templates]);
+
+  // 模板列表变更（编辑/删除）
+  const handleTemplatesChange = useCallback(async (updated: DefectTemplate[]) => {
+    await saveTemplates(updated);
+    setTemplates(updated);
+  }, []);
+
   if (batchMode) {
     return (
       <Layout style={{ minHeight: '100vh' }}>
@@ -217,6 +266,43 @@ const DefectForm: React.FC = () => {
       <Content style={{ padding: 24, maxWidth: 1200, margin: '0 auto', width: '100%' }}>
         <div style={{ display: 'flex', gap: 24 }}>
           <div style={{ flex: 2 }}>
+            {/* 模板选择器 */}
+            <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>模板:</span>
+              <Select
+                placeholder="选择模板快速填写"
+                style={{ flex: 1, maxWidth: 300 }}
+                allowClear
+                value={undefined}
+                onChange={(templateId) => {
+                  const t = templates.find(t => t.id === templateId);
+                  if (t) handleApplyTemplate(t);
+                }}
+                options={templates.map(t => ({
+                  label: t.name,
+                  value: t.id,
+                }))}
+                disabled={creating || translating}
+              />
+              <Button
+                icon={<SaveOutlined />}
+                size="small"
+                onClick={() => setSaveTemplateModalOpen(true)}
+                disabled={creating || translating}
+              >
+                保存为模板
+              </Button>
+              <Button
+                icon={<AppstoreOutlined />}
+                size="small"
+                type="text"
+                onClick={() => setTemplateManagerOpen(true)}
+                disabled={creating || translating}
+              >
+                管理
+              </Button>
+            </div>
+
             <DefectFields
               value={currentDefect}
               onChange={setCurrentDefect}
@@ -268,6 +354,22 @@ const DefectForm: React.FC = () => {
             onCancel={() => setPreviewOpen(false)}
           />
         )}
+
+        <SaveTemplateModal
+          open={saveTemplateModalOpen}
+          onClose={() => setSaveTemplateModalOpen(false)}
+          currentDefect={currentDefect}
+          existingTemplates={templates}
+          onSave={handleSaveTemplate}
+        />
+
+        <TemplateManager
+          open={templateManagerOpen}
+          onClose={() => setTemplateManagerOpen(false)}
+          templates={templates}
+          onTemplatesChange={handleTemplatesChange}
+          onApplyTemplate={handleApplyTemplate}
+        />
       </Content>
     </Layout>
   );
