@@ -44,9 +44,12 @@ export interface ValidationError {
 
 export interface BatchItemResult {
   id: string;
+  title?: string;
   success: boolean;
   issueKey?: string;
+  preconditionKeys?: string[];
   error?: string;
+  warnings?: string[];
 }
 
 export function createEmptyDefect(): DefectData {

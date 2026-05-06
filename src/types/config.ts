@@ -17,14 +17,30 @@ export interface TranslateConfig {
   youdaoAppSecret: string;
 }
 
+export interface AiConfig {
+  provider: 'claude' | 'openai' | 'deepseek';
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+}
+
 export interface DictEntry {
   zh: string;
   en: string;
 }
 
+export interface XrayConfig {
+  enabled: boolean;
+  clientId: string;
+  clientSecret: string;
+}
+
 export interface AppConfig {
   jira: JiraConfig;
+  jiraTestCase: JiraConfig;
+  xray: XrayConfig;
   translate: TranslateConfig;
+  ai: AiConfig;
   customDict: DictEntry[];
 }
 
@@ -37,6 +53,13 @@ export function createDefaultConfig(): AppConfig {
       projectKey: '',
       issueType: 'Bug',
     },
+    jiraTestCase: {
+      serverUrl: '',
+      username: '',
+      apiToken: '',
+      projectKey: '',
+      issueType: 'Test',
+    },
     translate: {
       onlineEnabled: false,
       onlineProvider: 'baidu',
@@ -44,6 +67,17 @@ export function createDefaultConfig(): AppConfig {
       baiduSecret: '',
       youdaoAppKey: '',
       youdaoAppSecret: '',
+    },
+    xray: {
+      enabled: false,
+      clientId: '',
+      clientSecret: '',
+    },
+    ai: {
+      provider: 'claude',
+      apiKey: '',
+      model: 'claude-sonnet-4-20250514',
+      baseUrl: '',
     },
     customDict: [],
   };

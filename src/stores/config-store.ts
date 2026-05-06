@@ -24,32 +24,19 @@ export async function loadConfig(): Promise<AppConfig> {
   const jira: any = { ...defaults.jira, ...saved.jira };
   const translate: any = { ...defaults.translate, ...saved.translate };
 
-  if (jira.apiTokenEncrypted !== undefined && jira.apiToken === undefined) {
-    jira.apiToken = '';
-    delete jira.apiTokenEncrypted;
-    needsMigration = true;
-  } else if (jira.apiTokenEncrypted !== undefined) {
-    delete jira.apiTokenEncrypted;
-    needsMigration = true;
+  // 通用的 Encrypted→明文迁移
+  type Obj = Record<string, any>;
+  function migrateEncryptedField(obj: Obj, encryptedKey: string, plainKey: string) {
+    if (obj[encryptedKey] !== undefined) {
+      if (obj[plainKey] === undefined) obj[plainKey] = '';
+      delete obj[encryptedKey];
+      needsMigration = true;
+    }
   }
 
-  if (translate.baiduSecretEncrypted !== undefined && translate.baiduSecret === undefined) {
-    translate.baiduSecret = '';
-    delete translate.baiduSecretEncrypted;
-    needsMigration = true;
-  } else if (translate.baiduSecretEncrypted !== undefined) {
-    delete translate.baiduSecretEncrypted;
-    needsMigration = true;
-  }
-
-  if (translate.youdaoAppSecretEncrypted !== undefined && translate.youdaoAppSecret === undefined) {
-    translate.youdaoAppSecret = '';
-    delete translate.youdaoAppSecretEncrypted;
-    needsMigration = true;
-  } else if (translate.youdaoAppSecretEncrypted !== undefined) {
-    delete translate.youdaoAppSecretEncrypted;
-    needsMigration = true;
-  }
+  migrateEncryptedField(jira, 'apiTokenEncrypted', 'apiToken');
+  migrateEncryptedField(translate, 'baiduSecretEncrypted', 'baiduSecret');
+  migrateEncryptedField(translate, 'youdaoAppSecretEncrypted', 'youdaoAppSecret');
 
   // 迁移：DeepL 已移除，降级为百度
   if (translate.onlineProvider === 'deepl') {
@@ -58,9 +45,28 @@ export async function loadConfig(): Promise<AppConfig> {
     needsMigration = true;
   }
 
+  const jiraTestCase: any = { ...defaults.jiraTestCase, ...saved.jiraTestCase };
+  const ai: any = { ...defaults.ai, ...saved.ai };
+
+  if (!saved.jiraTestCase) {
+    needsMigration = true;
+  }
+
+  if (!saved.ai) {
+    needsMigration = true;
+  }
+
+  const xray: any = { ...defaults.xray, ...saved.xray };
+  if (!saved.xray) {
+    needsMigration = true;
+  }
+
   const config: AppConfig = {
     jira,
+    jiraTestCase,
+    xray,
     translate,
+    ai,
     customDict: saved.customDict || [],
   };
 

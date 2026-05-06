@@ -1,15 +1,42 @@
 import React, { useEffect, useState } from 'react';
 import { Layout, Typography, Card, Button, message, Table, Space, Modal, Form, Input, Popconfirm, Select, Switch } from 'antd';
+import type { FormInstance } from 'antd';
 import { ArrowLeftOutlined, PlusOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import JiraConfigForm from '../components/jira-config-form';
 import { loadConfig, saveConfig, loadCustomDict, saveCustomDict } from '../stores/config-store';
 import type { AppConfig, DictEntry } from '../types/config';
 import { createDefaultConfig } from '../types/config';
+import { xrayAuthenticate } from '../services/jira-api';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 const { Header, Content } = Layout;
 const { Title } = Typography;
+
+// 通用的表单保存 handler 工厂
+function makeSaveHandler<TValues>(
+  form: FormInstance,
+  setSaving: (b: boolean) => void,
+  buildConfig: (values: TValues, config: AppConfig) => AppConfig,
+  successMsg: string,
+  getConfig: () => AppConfig,
+  onConfigChange: (c: AppConfig) => void,
+) {
+  return async () => {
+    try {
+      const values = await form.validateFields() as TValues;
+      setSaving(true);
+      const newConfig = buildConfig(values, getConfig());
+      await saveConfig(newConfig);
+      onConfigChange(newConfig);
+      message.success(successMsg);
+    } catch {
+      // validation error
+    } finally {
+      setSaving(false);
+    }
+  };
+}
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
@@ -20,6 +47,11 @@ const Settings: React.FC = () => {
   const [dictForm] = Form.useForm();
   const [translateForm] = Form.useForm();
   const [savingTranslate, setSavingTranslate] = useState(false);
+  const [aiForm] = Form.useForm();
+  const [savingAi, setSavingAi] = useState(false);
+  const [xrayForm] = Form.useForm();
+  const [savingXray, setSavingXray] = useState(false);
+  const [testingXray, setTestingXray] = useState(false);
   const onlineProvider = Form.useWatch('onlineProvider', translateForm);
 
   useEffect(() => {
@@ -38,7 +70,24 @@ const Settings: React.FC = () => {
     });
   }, [config, translateForm]);
 
-  const handleEncryptAndSave = async (values: {
+  useEffect(() => {
+    aiForm.setFieldsValue({
+      provider: config.ai.provider,
+      apiKey: config.ai.apiKey || '',
+      model: config.ai.model || '',
+      baseUrl: config.ai.baseUrl || '',
+    });
+  }, [config, aiForm]);
+
+  useEffect(() => {
+    xrayForm.setFieldsValue({
+      enabled: config.xray.enabled,
+      clientId: config.xray.clientId || '',
+      clientSecret: config.xray.clientSecret || '',
+    });
+  }, [config, xrayForm]);
+
+  const handleEncryptAndSaveJira = async (values: {
     serverUrl: string;
     username: string;
     apiToken: string;
@@ -59,6 +108,28 @@ const Settings: React.FC = () => {
     setConfig(newConfig);
   };
 
+  const handleEncryptAndSaveJiraTestCase = async (values: {
+    serverUrl: string;
+    username: string;
+    apiToken: string;
+    projectKey: string;
+    issueType: string;
+  }) => {
+    const newConfig: AppConfig = {
+      ...config,
+      jiraTestCase: {
+        serverUrl: values.serverUrl,
+        username: values.username,
+        apiToken: values.apiToken || config.jiraTestCase.apiToken,
+        projectKey: values.projectKey,
+        issueType: values.issueType,
+      },
+    };
+    await saveConfig(newConfig);
+    setConfig(newConfig);
+  };
+
+  // 翻译配置保存逻辑较特殊（有自动启用判断），保持独立
   const handleSaveTranslate = async () => {
     try {
       const values = await translateForm.validateFields();
@@ -91,6 +162,52 @@ const Settings: React.FC = () => {
       // validation error
     } finally {
       setSavingTranslate(false);
+    }
+  };
+
+  const handleSaveAi = makeSaveHandler(
+    aiForm,
+    setSavingAi,
+    (values: any, cfg) => ({
+      ...cfg,
+      ai: {
+        provider: values.provider || 'claude',
+        apiKey: values.apiKey || '',
+        model: values.model || '',
+        baseUrl: values.baseUrl || '',
+      },
+    }),
+    'AI 配置已保存',
+    () => config,
+    setConfig,
+  );
+
+  const handleSaveXray = makeSaveHandler(
+    xrayForm,
+    setSavingXray,
+    (values: any, cfg) => ({
+      ...cfg,
+      xray: {
+        enabled: values.enabled || false,
+        clientId: values.clientId || '',
+        clientSecret: values.clientSecret || cfg.xray.clientSecret,
+      },
+    }),
+    'Xray 配置已保存',
+    () => config,
+    setConfig,
+  );
+
+  const handleTestXray = async () => {
+    try {
+      const values = await xrayForm.validateFields(['clientId', 'clientSecret']);
+      setTestingXray(true);
+      await xrayAuthenticate(values.clientId, values.clientSecret || config.xray.clientSecret);
+      message.success('Xray 连接成功！');
+    } catch (err: any) {
+      message.error(`Xray 连接失败: ${err?.toString() || '未知错误'}`);
+    } finally {
+      setTestingXray(false);
     }
   };
 
@@ -138,7 +255,7 @@ const Settings: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: DictEntry) => (
+      render: (_: unknown, record: DictEntry) => (
         <Space>
           <a onClick={() => handleEditDictEntry(record)}>编辑</a>
           <Popconfirm title="确认删除?" onConfirm={() => handleDeleteDictEntry(record.zh)}>
@@ -160,11 +277,45 @@ const Settings: React.FC = () => {
         <Title level={4} style={{ margin: 0 }}>设置</Title>
       </Header>
       <Content style={{ padding: 24, maxWidth: 800, margin: '0 auto', width: '100%' }}>
-        <Card title="JIRA 连接配置" style={{ marginBottom: 24 }}>
+        <Card title="JIRA 缺陷连接配置" style={{ marginBottom: 24 }}>
           <JiraConfigForm
             config={config.jira}
-            encryptAndSave={handleEncryptAndSave}
+            encryptAndSave={handleEncryptAndSaveJira}
           />
+        </Card>
+
+        <Card title="JIRA 测试用例连接配置" style={{ marginBottom: 24 }}>
+          <JiraConfigForm
+            config={config.jiraTestCase}
+            encryptAndSave={handleEncryptAndSaveJiraTestCase}
+          />
+        </Card>
+
+        <Card title="Xray 测试管理配置" style={{ marginBottom: 24 }}>
+          <Form form={xrayForm} layout="vertical">
+            <Form.Item name="enabled" label="启用 Xray 集成" valuePropName="checked" extra="启用后，测试用例将通过 Xray API 创建，支持 Test Steps 和 Preconditions">
+              <Switch checkedChildren="开" unCheckedChildren="关" />
+            </Form.Item>
+
+            <Form.Item name="clientId" label="Client ID" rules={[{ required: false, message: '请输入 Client ID' }]}>
+              <Input placeholder="Xray API Client ID" />
+            </Form.Item>
+
+            <Form.Item name="clientSecret" label="Client Secret" rules={[{ required: false, message: '请输入 Client Secret' }]}>
+              <Input.Password placeholder="Xray API Client Secret" />
+            </Form.Item>
+
+            <div style={{ marginBottom: 16, color: '#999', fontSize: 12 }}>
+              获取方式：JIRA → Apps → Xray API Keys → 创建 API Key → 获取 Client ID 和 Client Secret
+            </div>
+
+            <Form.Item>
+              <Space>
+                <Button type="primary" onClick={handleSaveXray} loading={savingXray}>保存 Xray 配置</Button>
+                <Button onClick={handleTestXray} loading={testingXray}>测试 Xray 连接</Button>
+              </Space>
+            </Form.Item>
+          </Form>
         </Card>
 
         <Card title="在线翻译配置" style={{ marginBottom: 24 }}>
@@ -206,6 +357,34 @@ const Settings: React.FC = () => {
 
             <Form.Item>
               <Button type="primary" onClick={handleSaveTranslate} loading={savingTranslate}>保存翻译配置</Button>
+            </Form.Item>
+          </Form>
+        </Card>
+
+        <Card title="AI 服务配置" style={{ marginBottom: 24 }}>
+          <Form form={aiForm} layout="vertical">
+            <Form.Item name="provider" label="AI 服务" rules={[{ required: true, message: '请选择 AI 服务' }]}>
+              <Select>
+                <Select.Option value="claude">Claude (Anthropic)</Select.Option>
+                <Select.Option value="openai">OpenAI (GPT)</Select.Option>
+                <Select.Option value="deepseek">DeepSeek</Select.Option>
+              </Select>
+            </Form.Item>
+
+            <Form.Item name="apiKey" label="API Key" rules={[{ required: true, message: '请输入 API Key' }]}>
+              <Input.Password placeholder="输入 AI 服务的 API Key" />
+            </Form.Item>
+
+            <Form.Item name="model" label="模型名称" rules={[{ required: true, message: '请输入模型名称' }]}>
+              <Input placeholder="如 claude-sonnet-4-20250514、gpt-4o、deepseek-chat" />
+            </Form.Item>
+
+            <Form.Item name="baseUrl" label="自定义 API 地址（可选）">
+              <Input placeholder="留空使用默认地址，支持第三方代理" />
+            </Form.Item>
+
+            <Form.Item>
+              <Button type="primary" onClick={handleSaveAi} loading={savingAi}>保存 AI 配置</Button>
             </Form.Item>
           </Form>
         </Card>

@@ -12,6 +12,34 @@ interface Props {
   disabled?: boolean;
 }
 
+type FileCategory = 'media' | 'trace';
+
+const CONFIGS: Record<FileCategory, {
+  label: string;
+  hint: string;
+  extensions: string[];
+  isValid: (name: string) => boolean;
+  getFiles: (d: DefectData) => AttachmentFile[];
+  setFiles: (d: DefectData, files: AttachmentFile[]) => DefectData;
+}> = {
+  media: {
+    label: '图片/视频',
+    hint: '支持 png/jpg/mp4/mov',
+    extensions: ['png', 'jpg', 'jpeg', 'mp4', 'mov'],
+    isValid: isValidMediaFile,
+    getFiles: (d) => d.mediaFiles,
+    setFiles: (d, files) => ({ ...d, mediaFiles: files }),
+  },
+  trace: {
+    label: 'Trace文件',
+    hint: '支持 txt/log/zip',
+    extensions: ['txt', 'log', 'zip'],
+    isValid: isValidTraceFile,
+    getFiles: (d) => d.traceFiles,
+    setFiles: (d, files) => ({ ...d, traceFiles: files }),
+  },
+};
+
 const dropZoneStyle: React.CSSProperties = {
   border: '1px dashed #d9d9d9',
   borderRadius: 8,
@@ -27,270 +55,162 @@ const dropZoneActiveStyle: React.CSSProperties = {
   backgroundColor: '#e6f7ff',
 };
 
+function extractFileName(path: string): string {
+  return path.split('/').pop() || path.split('\\').pop() || 'file';
+}
+
+function buildAttachment(path: string, type: FileCategory): AttachmentFile {
+  return {
+    id: crypto.randomUUID(),
+    name: extractFileName(path),
+    path,
+    size: 0,
+    type,
+  };
+}
+
 const AttachmentUpload: React.FC<Props> = ({ defect, onChange, disabled }) => {
-  const [mediaDragOver, setMediaDragOver] = useState(false);
-  const [traceDragOver, setTraceDragOver] = useState(false);
-  const mediaDragCounter = useRef(0);
-  const traceDragCounter = useRef(0);
-  const mediaDropRef = useRef<HTMLDivElement>(null);
-  const traceDropRef = useRef<HTMLDivElement>(null);
-
-  const pickMediaFiles = useCallback(async () => {
-    if (disabled) return;
-    try {
-      const selected = await open({
-        multiple: true,
-        filters: [{ name: 'Media', extensions: ['png', 'jpg', 'jpeg', 'mp4', 'mov'] }],
-      });
-      if (!selected) return;
-
-      const paths = Array.isArray(selected) ? selected : [selected];
-      const newFiles: AttachmentFile[] = paths
-        .filter(p => isValidMediaFile(p.split('/').pop() || p.split('\\').pop() || ''))
-        .map(p => ({
-          id: crypto.randomUUID(),
-          name: p.split('/').pop() || p.split('\\').pop() || 'file',
-          path: p,
-          size: 0,
-          type: 'media' as const,
-        }));
-
-      if (newFiles.length > 0) {
-        onChange({ ...defect, mediaFiles: [...defect.mediaFiles, ...newFiles] });
-      }
-    } catch {
-      message.error('选择文件失败');
-    }
-  }, [defect, onChange, disabled]);
-
-  const pickTraceFiles = useCallback(async () => {
-    if (disabled) return;
-    try {
-      const selected = await open({
-        multiple: true,
-        filters: [{ name: 'Trace', extensions: ['txt', 'log', 'zip'] }],
-      });
-      if (!selected) return;
-
-      const paths = Array.isArray(selected) ? selected : [selected];
-      const newFiles: AttachmentFile[] = paths
-        .filter(p => isValidTraceFile(p.split('/').pop() || p.split('\\').pop() || ''))
-        .map(p => ({
-          id: crypto.randomUUID(),
-          name: p.split('/').pop() || p.split('\\').pop() || 'file',
-          path: p,
-          size: 0,
-          type: 'trace' as const,
-        }));
-
-      if (newFiles.length > 0) {
-        onChange({ ...defect, traceFiles: [...defect.traceFiles, ...newFiles] });
-      }
-    } catch {
-      message.error('选择文件失败');
-    }
-  }, [defect, onChange, disabled]);
-
-  const handleTauriMediaDrop = useCallback((paths: string[]) => {
-    if (disabled) return;
-    const validFiles: AttachmentFile[] = [];
-    const invalidNames: string[] = [];
-    for (const p of paths) {
-      const name = p.split('/').pop() || p.split('\\').pop() || '';
-      if (isValidMediaFile(name)) {
-        validFiles.push({ id: crypto.randomUUID(), name, path: p, size: 0, type: 'media' });
-      } else {
-        invalidNames.push(name);
-      }
-    }
-    if (invalidNames.length > 0) message.warning(`不支持的文件格式: ${invalidNames.join(', ')}`);
-    if (validFiles.length > 0) onChange({ ...defect, mediaFiles: [...defect.mediaFiles, ...validFiles] });
-  }, [defect, onChange, disabled]);
-
-  const handleTauriTraceDrop = useCallback((paths: string[]) => {
-    if (disabled) return;
-    const validFiles: AttachmentFile[] = [];
-    const invalidNames: string[] = [];
-    for (const p of paths) {
-      const name = p.split('/').pop() || p.split('\\').pop() || '';
-      if (isValidTraceFile(name)) {
-        validFiles.push({ id: crypto.randomUUID(), name, path: p, size: 0, type: 'trace' });
-      } else {
-        invalidNames.push(name);
-      }
-    }
-    if (invalidNames.length > 0) message.warning(`不支持的文件格式: ${invalidNames.join(', ')}`);
-    if (validFiles.length > 0) onChange({ ...defect, traceFiles: [...defect.traceFiles, ...validFiles] });
-  }, [defect, onChange, disabled]);
-
-  useTauriDragDrop({ ref: mediaDropRef, onDrop: handleTauriMediaDrop, enabled: !disabled });
-  useTauriDragDrop({ ref: traceDropRef, onDrop: handleTauriTraceDrop, enabled: !disabled });
-
-  const removeMedia = (id: string) => {
-    onChange({ ...defect, mediaFiles: defect.mediaFiles.filter(f => f.id !== id) });
-  };
-
-  const removeTrace = (id: string) => {
-    onChange({ ...defect, traceFiles: defect.traceFiles.filter(f => f.id !== id) });
-  };
-
-  const handleMediaDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    mediaDragCounter.current = 0;
-    setMediaDragOver(false);
-    if (disabled) return;
-
-    const files = Array.from(e.dataTransfer.files);
-    const validFiles: AttachmentFile[] = [];
-    const invalidNames: string[] = [];
-
-    for (const file of files) {
-      if (!file.path) {
-        message.warning(`无法获取文件路径: ${file.name}`);
-        continue;
-      }
-      if (isValidMediaFile(file.name)) {
-        validFiles.push({
-          id: crypto.randomUUID(),
-          name: file.name,
-          path: file.path,
-          size: file.size,
-          type: 'media' as const,
-        });
-      } else {
-        invalidNames.push(file.name);
-      }
-    }
-
-    if (invalidNames.length > 0) {
-      message.warning(`不支持的文件格式: ${invalidNames.join(', ')}`);
-    }
-    if (validFiles.length > 0) {
-      onChange({ ...defect, mediaFiles: [...defect.mediaFiles, ...validFiles] });
-    }
-  }, [defect, onChange, disabled]);
-
-  const handleTraceDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    traceDragCounter.current = 0;
-    setTraceDragOver(false);
-    if (disabled) return;
-
-    const files = Array.from(e.dataTransfer.files);
-    const validFiles: AttachmentFile[] = [];
-    const invalidNames: string[] = [];
-
-    for (const file of files) {
-      if (!file.path) {
-        message.warning(`无法获取文件路径: ${file.name}`);
-        continue;
-      }
-      if (isValidTraceFile(file.name)) {
-        validFiles.push({
-          id: crypto.randomUUID(),
-          name: file.name,
-          path: file.path,
-          size: file.size,
-          type: 'trace' as const,
-        });
-      } else {
-        invalidNames.push(file.name);
-      }
-    }
-
-    if (invalidNames.length > 0) {
-      message.warning(`不支持的文件格式: ${invalidNames.join(', ')}`);
-    }
-    if (validFiles.length > 0) {
-      onChange({ ...defect, traceFiles: [...defect.traceFiles, ...validFiles] });
-    }
-  }, [defect, onChange, disabled]);
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <div style={{ marginBottom: 8, fontWeight: 500 }}>图片/视频</div>
-        <div
-          ref={mediaDropRef}
-          style={{
-            ...dropZoneStyle,
-            ...(mediaDragOver ? dropZoneActiveStyle : {}),
-            opacity: disabled ? 0.5 : 1,
-          }}
-          onClick={pickMediaFiles}
-          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-          onDragEnter={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            mediaDragCounter.current++;
-            setMediaDragOver(true);
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            mediaDragCounter.current--;
-            if (mediaDragCounter.current === 0) setMediaDragOver(false);
-          }}
-          onDrop={handleMediaDrop}
-        >
-          <InboxOutlined style={{ fontSize: 32, color: '#1890ff' }} />
-          <div style={{ marginTop: 8, color: '#666' }}>点击或拖拽上传图片/视频</div>
-          <div style={{ fontSize: 12, color: '#999' }}>支持 png/jpg/mp4/mov</div>
-        </div>
-        {defect.mediaFiles.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            {defect.mediaFiles.map(f => (
-              <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
-                <DeleteOutlined onClick={() => removeMedia(f.id)} style={{ color: '#ff4d4f', cursor: 'pointer' }} />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <DropZone category="media" defect={defect} onChange={onChange} disabled={disabled} />
+      <DropZone category="trace" defect={defect} onChange={onChange} disabled={disabled} />
+    </div>
+  );
+};
 
-      <div>
-        <div style={{ marginBottom: 8, fontWeight: 500 }}>Trace文件</div>
-        <div
-          ref={traceDropRef}
-          style={{
-            ...dropZoneStyle,
-            ...(traceDragOver ? dropZoneActiveStyle : {}),
-            opacity: disabled ? 0.5 : 1,
-          }}
-          onClick={pickTraceFiles}
-          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-          onDragEnter={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            traceDragCounter.current++;
-            setTraceDragOver(true);
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            traceDragCounter.current--;
-            if (traceDragCounter.current === 0) setTraceDragOver(false);
-          }}
-          onDrop={handleTraceDrop}
-        >
-          <InboxOutlined style={{ fontSize: 32, color: '#1890ff' }} />
-          <div style={{ marginTop: 8, color: '#666' }}>点击或拖拽上传Trace文件</div>
-          <div style={{ fontSize: 12, color: '#999' }}>支持 txt/log/zip</div>
-        </div>
-        {defect.traceFiles.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            {defect.traceFiles.map(f => (
-              <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
-                <DeleteOutlined onClick={() => removeTrace(f.id)} style={{ color: '#ff4d4f', cursor: 'pointer' }} />
-              </div>
-            ))}
-          </div>
-        )}
+interface DropZoneProps {
+  category: FileCategory;
+  defect: DefectData;
+  onChange: (defect: DefectData) => void;
+  disabled?: boolean;
+}
+
+const DropZone: React.FC<DropZoneProps> = ({ category, defect, onChange, disabled }) => {
+  const cfg = CONFIGS[category];
+  const [dragOver, setDragOver] = useState(false);
+  const dragCounter = useRef(0);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  const addFiles = useCallback((paths: string[]) => {
+    const validFiles: AttachmentFile[] = [];
+    const invalidNames: string[] = [];
+    for (const p of paths) {
+      const name = extractFileName(p);
+      if (cfg.isValid(name)) {
+        validFiles.push(buildAttachment(p, category));
+      } else {
+        invalidNames.push(name);
+      }
+    }
+    if (invalidNames.length > 0) message.warning(`不支持的文件格式: ${invalidNames.join(', ')}`);
+    if (validFiles.length > 0) {
+      onChange(cfg.setFiles(defect, [...cfg.getFiles(defect), ...validFiles]));
+    }
+  }, [defect, onChange, disabled, cfg, category]);
+
+  const pickFiles = useCallback(async () => {
+    if (disabled) return;
+    try {
+      const selected = await open({
+        multiple: true,
+        filters: [{ name: cfg.label, extensions: cfg.extensions }],
+      });
+      if (!selected) return;
+      const paths = Array.isArray(selected) ? selected : [selected];
+      addFiles(paths);
+    } catch {
+      message.error('选择文件失败');
+    }
+  }, [addFiles, disabled, cfg]);
+
+  const handleTauriDrop = useCallback((paths: string[]) => {
+    if (disabled) return;
+    addFiles(paths);
+  }, [addFiles, disabled]);
+
+  useTauriDragDrop({ ref: dropRef, onDrop: handleTauriDrop, enabled: !disabled });
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setDragOver(false);
+    if (disabled) return;
+
+    const files = Array.from(e.dataTransfer.files);
+    const validFiles: AttachmentFile[] = [];
+    const invalidNames: string[] = [];
+
+    for (const file of files) {
+      if (!file.path) {
+        message.warning(`无法获取文件路径: ${file.name}`);
+        continue;
+      }
+      if (cfg.isValid(file.name)) {
+        validFiles.push({
+          id: crypto.randomUUID(),
+          name: file.name,
+          path: file.path,
+          size: file.size,
+          type: category,
+        });
+      } else {
+        invalidNames.push(file.name);
+      }
+    }
+
+    if (invalidNames.length > 0) message.warning(`不支持的文件格式: ${invalidNames.join(', ')}`);
+    if (validFiles.length > 0) {
+      onChange(cfg.setFiles(defect, [...cfg.getFiles(defect), ...validFiles]));
+    }
+  }, [defect, onChange, disabled, cfg, category]);
+
+  const removeFile = useCallback((id: string) => {
+    onChange(cfg.setFiles(defect, cfg.getFiles(defect).filter(f => f.id !== id)));
+  }, [defect, onChange, cfg]);
+
+  const files = cfg.getFiles(defect);
+
+  return (
+    <div>
+      <div style={{ marginBottom: 8, fontWeight: 500 }}>{cfg.label}</div>
+      <div
+        ref={dropRef}
+        style={{
+          ...dropZoneStyle,
+          ...(dragOver ? dropZoneActiveStyle : {}),
+          opacity: disabled ? 0.5 : 1,
+        }}
+        onClick={pickFiles}
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dragCounter.current++;
+          setDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dragCounter.current--;
+          if (dragCounter.current === 0) setDragOver(false);
+        }}
+        onDrop={handleDrop}
+      >
+        <InboxOutlined style={{ fontSize: 32, color: '#1890ff' }} />
+        <div style={{ marginTop: 8, color: '#666' }}>点击或拖拽上传{cfg.label}</div>
+        <div style={{ fontSize: 12, color: '#999' }}>{cfg.hint}</div>
       </div>
+      {files.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          {files.map(f => (
+            <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+              <DeleteOutlined onClick={() => removeFile(f.id)} style={{ color: '#ff4d4f', cursor: 'pointer' }} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

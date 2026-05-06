@@ -6,6 +6,8 @@ export interface PriorityOption {
   value: Priority;
 }
 
+export const PRIORITY_NAMES = ['Blocker', 'Critical', 'Major', 'Minor', 'Trivial'] as const;
+
 export const DEFAULT_PRIORITY_OPTIONS: PriorityOption[] = [
   { label: 'Blocker', value: '1' },
   { label: 'Critical', value: '2' },

@@ -93,6 +93,12 @@ function processRows(rows: Record<string, string>[]): ParseResult {
     }
   }
 
+  // 可从表格导入的文本字段
+  type TextFieldKey = 'summary' | 'timestamp' | 'precondition' | 'steps' | 'expectedResult' | 'actualResult' | 'recoverSteps';
+  const TEXT_FIELDS: Set<string> = new Set<TextFieldKey>([
+    'summary', 'timestamp', 'precondition', 'steps', 'expectedResult', 'actualResult', 'recoverSteps',
+  ]);
+
   const items: DefectData[] = rows.map(row => {
     const defect = createEmptyDefect();
     for (const [header, field] of Object.entries(fieldMap)) {
@@ -101,8 +107,8 @@ function processRows(rows: Record<string, string>[]): ParseResult {
         defect.priority = mapPriorityValue(value);
       } else if (field === 'reproduceRate') {
         defect.reproduceRate = mapReproduceRateValue(value);
-      } else {
-        (defect as any)[field] = value;
+      } else if (TEXT_FIELDS.has(field)) {
+        defect[field as TextFieldKey] = value;
       }
     }
     return defect;

@@ -83,17 +83,9 @@ const TemplateManager: React.FC<Props> = ({
         return;
       }
 
-      const templateData: TemplateData = {
-        summary: values.summary || '',
-        priority: values.priority || '',
-        timestamp: values.timestamp || '',
-        precondition: values.precondition || '',
-        steps: values.steps || '',
-        expectedResult: values.expectedResult || '',
-        actualResult: values.actualResult || '',
-        reproduceRate: values.reproduceRate || '',
-        recoverSteps: values.recoverSteps || '',
-      };
+      const templateData: TemplateData = Object.fromEntries(
+        FIELD_CONFIG.map(f => [f.key, values[f.key] || ''])
+      ) as unknown as TemplateData;
 
       let updated: DefectTemplate[];
       if (editingTemplate) {

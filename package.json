@@ -1,5 +1,5 @@
 {
-  "name": "jira-defect-tool",
+  "name": "test-tool",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -19,7 +19,10 @@
     "@tauri-apps/plugin-store": "^2.4.2",
     "antd": "^6.3.7",
     "blueimp-md5": "^2.19.0",
+    "mammoth": "^1.12.0",
     "papaparse": "^5.5.3",
+    "pdfjs-dist": "^5.7.284",
+    "pptxtojson": "^2.0.2",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.2",

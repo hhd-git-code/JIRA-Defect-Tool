@@ -1,6 +1,7 @@
 mod commands;
+mod utils;
 
-use commands::{crypto, jira};
+use commands::{ai, crypto, jira};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -17,6 +18,14 @@ pub fn run() {
             jira::jira_create_issue,
             jira::jira_get_priorities,
             jira::jira_upload_attachments,
+            jira::jira_create_issue_with_fields,
+            jira::xray_authenticate,
+            jira::xray_resolve_project_info,
+            jira::xray_create_test_with_details,
+            ai::ai_chat_completion,
+            ai::ai_stream_chat,
+            ai::fetch_url_content,
+            ai::fetch_confluence_content,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
