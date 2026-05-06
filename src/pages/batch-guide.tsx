@@ -7,7 +7,7 @@ import BatchProgress from '../components/batch-progress';
 import { BatchResultPanel } from '../components/result-panel';
 import { useBatchStore, isBatchCancelled } from '../stores/batch-store';
 import { validateDefect } from '../services/validation';
-import { translateDefect } from '../services/translate-engine';
+import { translateDefect, buildOnlineConfig } from '../services/translate-engine';
 import { formatDescription } from '../utils/format-description';
 import * as jiraApi from '../services/jira-api';
 import { loadConfig } from '../stores/config-store';
@@ -88,17 +88,7 @@ const BatchGuide: React.FC<Props> = ({ onComplete, priorityOptions, jiraPrioriti
           continue;
         }
 
-        const hasOnlineConfig = config.translate.onlineEnabled &&
-          ((config.translate.onlineProvider === 'baidu' && config.translate.baiduAppId && config.translate.baiduSecret) ||
-           (config.translate.onlineProvider === 'youdao' && config.translate.youdaoAppKey && config.translate.youdaoAppSecret));
-
-        const translated = await translateDefect(item, hasOnlineConfig ? {
-          provider: config.translate.onlineProvider,
-          baiduAppId: config.translate.baiduAppId || '',
-          baiduSecret: config.translate.baiduSecret || '',
-          youdaoAppKey: config.translate.youdaoAppKey || '',
-          youdaoAppSecret: config.translate.youdaoAppSecret || '',
-        } : undefined);
+        const translated = await translateDefect(item, buildOnlineConfig(config.translate));
 
         if (isBatchCancelled()) break;
 
@@ -114,15 +104,15 @@ const BatchGuide: React.FC<Props> = ({ onComplete, priorityOptions, jiraPrioriti
         if (allPaths.length > 0) {
           try {
             await jiraApi.uploadAttachments(config.jira, resp.key, allPaths);
-          } catch (attachErr: any) {
-            addResult({ id: item.id, success: true, issueKey: resp.key + ' (附件上传失败: ' + attachErr?.toString() + ')' });
+          } catch (attachErr: unknown) {
+            addResult({ id: item.id, success: true, issueKey: resp.key + ' (附件上传失败: ' + (attachErr instanceof Error ? attachErr.message : String(attachErr)) + ')' });
             continue;
           }
         }
 
         addResult({ id: item.id, success: true, issueKey: resp.key });
-      } catch (err: any) {
-        addResult({ id: item.id, success: false, error: err?.toString() || '创建失败' });
+      } catch (err: unknown) {
+        addResult({ id: item.id, success: false, error: (err instanceof Error ? err.message : String(err)) || '创建失败' });
       }
     }
 

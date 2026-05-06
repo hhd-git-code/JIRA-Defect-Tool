@@ -87,8 +87,8 @@ const PrdTestCase: React.FC = () => {
           setStreamingText('');
         },
       }, state.prdSource.type as 'file' | 'url');
-    } catch (err: any) {
-      message.error(`生成测试点失败: ${err?.toString()}`);
+    } catch (err: unknown) {
+      message.error(`生成测试点失败: ${err instanceof Error ? err.message : String(err)}`);
       setGenerating(false);
       setStreamingText('');
     }
@@ -123,8 +123,8 @@ const PrdTestCase: React.FC = () => {
       const translated = await translateTestPoints(state.testPoints, config.translate);
       setTranslatedTestPoints(translated);
       message.success('翻译完成');
-    } catch (err: any) {
-      message.error(`翻译失败: ${err?.toString()}`);
+    } catch (err: unknown) {
+      message.error(`翻译失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setTranslating(false);
     }
@@ -144,8 +144,8 @@ const PrdTestCase: React.FC = () => {
       try {
         xrayToken = await xrayAuthenticate(config!.xray.clientId, config!.xray.clientSecret);
         projectInfo = await xrayResolveProjectInfo(jiraConfig);
-      } catch (err: any) {
-        message.error(`Xray 初始化失败: ${err?.toString() || '未知错误'}`);
+      } catch (err: unknown) {
+        message.error(`Xray 初始化失败: ${err instanceof Error ? err.message : String(err) || '未知错误'}`);
         return;
       }
     }
@@ -187,8 +187,8 @@ const PrdTestCase: React.FC = () => {
           addCreateResult({ id: tp.id, title: tp.title, success: true, issueKey: resp.key });
         }
         sCount++;
-      } catch (err: any) {
-        addCreateResult({ id: tp.id, title: tp.title, success: false, error: err?.toString() || '创建失败' });
+      } catch (err: unknown) {
+        addCreateResult({ id: tp.id, title: tp.title, success: false, error: (err instanceof Error ? err.message : String(err)) || '创建失败' });
         fCount++;
       }
     }

@@ -4660,6 +4660,7 @@ version = "1.0.0"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
+ "dirs",
  "ego-tree",
  "futures-util",
  "html-escape",

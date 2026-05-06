@@ -1,33 +1,48 @@
-use aes_gcm::aead::generic_array::typenum::U12;
 use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, KeyInit};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use rand::RngCore;
 use sha2::{Digest, Sha256};
-use std::env;
+use std::path::PathBuf;
+use std::sync::OnceLock;
 
-// 密钥由 hostname + username 派生，每台机器不同
+const SALT_LEN: usize = 32;
+
+fn salt_path() -> PathBuf {
+    let mut dir = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
+    dir.push("jira-test-tool");
+    let _ = std::fs::create_dir_all(&dir);
+    dir.push("crypto.salt");
+    dir
+}
+
+fn load_or_create_salt() -> [u8; SALT_LEN] {
+    let path = salt_path();
+    if let Ok(data) = std::fs::read(&path) {
+        if data.len() == SALT_LEN {
+            let mut salt = [0u8; SALT_LEN];
+            salt.copy_from_slice(&data);
+            return salt;
+        }
+    }
+    let mut salt = [0u8; SALT_LEN];
+    rand::thread_rng().fill_bytes(&mut salt);
+    let _ = std::fs::write(&path, &salt);
+    salt
+}
+
 fn derive_key() -> [u8; 32] {
-    let hostname = env::var("HOSTNAME")
-        .or_else(|_| env::var("COMPUTERNAME"))
-        .or_else(|_| {
-            std::process::Command::new("hostname")
-                .output()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        })
-        .unwrap_or_else(|_| "default-host".into());
-
-    let username = env::var("USER")
-        .or_else(|_| env::var("USERNAME"))
-        .unwrap_or_else(|_| "default-user".into());
-
-    let mut hasher = Sha256::new();
-    hasher.update(format!("{}:{}", hostname, username));
-    let result = hasher.finalize();
-    let mut key = [0u8; 32];
-    key.copy_from_slice(&result);
-    key
+    static KEY: OnceLock<[u8; 32]> = OnceLock::new();
+    *KEY.get_or_init(|| {
+        let salt = load_or_create_salt();
+        let mut hasher = Sha256::new();
+        hasher.update(&salt);
+        let result = hasher.finalize();
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&result);
+        key
+    })
 }
 
 /// 加密：随机 nonce(12字节) + ciphertext，Base64 编码

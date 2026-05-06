@@ -204,8 +204,8 @@ const Settings: React.FC = () => {
       setTestingXray(true);
       await xrayAuthenticate(values.clientId, values.clientSecret || config.xray.clientSecret);
       message.success('Xray 连接成功！');
-    } catch (err: any) {
-      message.error(`Xray 连接失败: ${err?.toString() || '未知错误'}`);
+    } catch (err: unknown) {
+      message.error(`Xray 连接失败: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setTestingXray(false);
     }

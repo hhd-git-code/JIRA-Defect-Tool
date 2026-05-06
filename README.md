@@ -1,6 +1,6 @@
 # JIRA 测试工具
 
-一款面向车载信息娱乐系统（IVI）测试团队的桌面工具。两大核心能力：**缺陷录入**（中文填写→自动翻译→一键创建 JIRA 缺陷）和 **PRD 转测试用例**（AI 生成测试点→翻译→创建 JIRA/Xray 测试用例）。
+一款面向车载信息娱乐系统（IVI）测试团队的桌面工具。三大核心能力：**缺陷录入**（中文填写→自动翻译→一键创建 JIRA 缺陷）、**PRD 转测试用例**（AI 生成测试点→翻译→创建 JIRA/Xray 测试用例）、**ADB 测试命令**（截图/录屏/投屏/Logcat 日志抓取，一站式证据收集）。
 
 ## 功能特性
 
@@ -24,10 +24,28 @@
 - **Xray 测试用例创建** — 集成 Xray Cloud API，创建带测试步骤和前置条件的结构化测试用例
 - **4 步向导引导** — 上传 PRD → AI 生成 → 翻译 → 创建，流程清晰
 
+### ADB 命令集成
+
+- **设备连接管理** — 列出已连接 ADB 设备，支持 IP:Port 网络连接，一键 Root
+- **一键截屏** — 截取设备屏幕并保存为 PNG（自动时间戳命名）
+- **一键录屏** — 基于 scrcpy 录制设备屏幕为 MP4，支持开始/停止控制
+- **一键投屏** — 启动 scrcpy 实时投屏窗口
+- **Logcat 日志抓取** — 实时显示日志（终端风格深色界面），支持标签过滤，自动保存为 .txt 文件
+- **按键模拟** — 一键发送 Back 按键事件
+- **输出目录可配置** — 截图、录屏、日志文件保存目录自定义，默认 `~/Desktop/adb-output`
+
+### 缺陷模板管理
+
+- **保存当前表单为模板** — 将缺陷表单 9 个字段一键保存为可复用模板
+- **模板管理** — 新建、编辑、删除模板，列表显示已填充字段数和前 3 字段预览
+- **快速应用** — 通过模板管理器一键填充表单，已有内容时弹出覆盖确认
+- **持久化存储** — 模板数据通过 Zustand + localStorage 持久化，跨会话保留
+
 ### 通用特性
 
 - **安全加密** — JIRA Token、AI API Key、Xray Secret 等所有敏感凭据使用 AES-256-GCM 加密存储
 - **跨平台** — 支持 Windows 10+ 和 macOS 12+
+- **外部工具集成** — ADB 和 scrcpy 系统命令集成，未安装时给出明确提示
 
 ## 技术栈
 
@@ -133,6 +151,27 @@ npm run tauri build
 
 > **获取 Xray 凭证:** 前往 Xray Cloud Settings → API Keys 生成 Client ID 和 Client Secret
 
+### ADB 命令
+
+1. 进入 **测试常用命令** 页面
+2. 选择文件保存目录（截图、录屏、日志输出的位置）
+3. **设备连接**：USB 连接后自动识别设备；也可输入 IP:Port 网络连接
+4. **截屏**：点击"截屏"按钮，自动截取设备屏幕并保存为 PNG
+5. **录屏**：点击"开始录屏"启动录制，再点击"停止录屏"保存为 MP4
+6. **投屏**：点击"投屏"启动 scrcpy 实时镜像窗口
+7. **Logcat**：输入过滤标签（可选），点击"开始抓取"实时查看日志，点击"停止抓取"保存日志为 .txt
+8. **按键模拟**：点击"返回"发送 Back 按键事件
+
+> **前提条件：** 需要系统已安装 `adb`（Android SDK Platform-Tools）；录屏和投屏功能需要额外安装 [scrcpy](https://github.com/Genymobile/scrcpy)。未安装时会给出明确提示。
+
+### 缺陷模板
+
+1. 在缺陷录入页面填写常用字段组合后，点击 **保存为模板** 按钮
+2. 输入模板名称，确认保存
+3. 需要复用时，点击 **模板管理** 按钮，查看所有模板（显示已填充字段数和预览）
+4. 点击"应用"将模板数据填入表单，表单已有内容时需确认覆盖
+5. 支持在模板管理器中新建、编辑、删除模板
+
 ### 配置在线翻译
 
 1. 在 **设置** 页面找到 **在线翻译配置**
@@ -177,6 +216,7 @@ jira-defect-tool/
 │   │   ├── defect-form.tsx           # 缺陷录入页
 │   │   ├── batch-guide.tsx           # 批量创建向导
 │   │   ├── prd-test-case.tsx         # PRD 转测试用例页
+│   │   ├── adb-commands.tsx          # ADB 命令页（设备管理/截图/录屏/投屏/Logcat）
 │   │   └── settings.tsx              # 设置页（JIRA/翻译/AI/Xray 配置）
 │   ├── components/
 │   │   ├── defect-fields.tsx         # 缺陷表单字段
@@ -186,8 +226,8 @@ jira-defect-tool/
 │   │   ├── batch-progress.tsx        # 批量创建进度
 │   │   ├── result-panel.tsx          # 创建结果展示
 │   │   ├── jira-config-form.tsx      # JIRA 配置表单
-│   │   ├── save-template-modal.tsx   # 保存模板弹窗
-│   │   ├── template-manager.tsx      # 模板管理组件
+│   │   ├── save-template-modal.tsx   # 缺陷模板保存弹窗
+│   │   ├── template-manager.tsx      # 缺陷模板管理组件
 │   │   ├── prd-upload.tsx            # PRD 文档上传组件
 │   │   ├── test-point-editor.tsx     # 测试点编辑器
 │   │   ├── test-case-translate.tsx   # 测试用例翻译组件
@@ -198,6 +238,7 @@ jira-defect-tool/
 │   │   ├── ai-service.ts             # AI 服务调用
 │   │   ├── ai-parser.ts              # AI 响应解析
 │   │   ├── document-parser.ts        # Word/PDF/MD 文档解析
+│   │   ├── adb-service.ts            # ADB 命令封装（设备/截图/录屏/Logcat）
 │   │   ├── test-case-translate.ts    # 测试用例翻译服务
 │   │   ├── dict-service.ts           # 自定义词典服务
 │   │   ├── table-parser.ts           # Excel/CSV 解析
@@ -228,6 +269,7 @@ jira-defect-tool/
 │       ├── commands/
 │       │   ├── jira.rs               # JIRA REST API + 附件上传
 │       │   ├── ai.rs                 # AI API 调用（Claude/OpenAI/DeepSeek）
+│       │   ├── adb.rs                # ADB 命令（设备/截图/录屏/Logcat/按键）
 │       │   ├── crypto.rs             # AES-256-GCM 加解密
 │       │   └── mod.rs
 │       ├── utils/
@@ -256,7 +298,8 @@ jira-defect-tool/
 4. **AI 配置** — PRD 转测试用例功能需要先配置 AI 服务，推荐使用 Claude 或 GPT-4o 模型
 5. **Xray 集成** — 需要在 Xray Cloud 中生成 API 凭证；未启用 Xray 时测试用例创建为普通 JIRA Issue
 6. **批量创建** — 建议先小批量测试，确认无误后再大批量提交
-7. **合法使用** — 请遵守所在组织的 JIRA 使用规范
+7. **ADB 依赖** — ADB 功能需要系统已安装 `adb`（Android SDK Platform-Tools）；录屏和投屏需要额外安装 [scrcpy](https://github.com/Genymobile/scrcpy)
+8. **合法使用** — 请遵守所在组织的 JIRA 使用规范
 
 ## 许可证
 

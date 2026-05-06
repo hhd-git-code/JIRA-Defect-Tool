@@ -24,8 +24,8 @@ const JiraConfigForm: React.FC<Props> = ({ config, encryptAndSave }) => {
       if (success) {
         message.success('连接成功！');
       }
-    } catch (err: any) {
-      message.error('连接失败: ' + (err?.message || err?.toString() || '未知错误'));
+    } catch (err: unknown) {
+      message.error('连接失败: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setTesting(false);
     }

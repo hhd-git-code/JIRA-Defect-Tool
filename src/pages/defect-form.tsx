@@ -132,8 +132,8 @@ const DefectForm: React.FC = () => {
       }
       setTranslated(translatedResult);
       setPreviewOpen(true);
-    } catch (err: any) {
-      message.error('翻译失败: ' + err?.toString());
+    } catch (err: unknown) {
+      message.error('翻译失败: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setTranslating(false);
     }
@@ -159,8 +159,8 @@ const DefectForm: React.FC = () => {
       if (allPaths.length > 0) {
         try {
           await jiraApi.uploadAttachments(config!.jira, resp.key, allPaths);
-        } catch (attachErr: any) {
-          message.warning(`缺陷 ${resp.key} 已创建，但附件上传失败: ${attachErr?.toString()}`);
+        } catch (attachErr: unknown) {
+          message.warning(`缺陷 ${resp.key} 已创建，但附件上传失败: ${attachErr instanceof Error ? attachErr.message : String(attachErr)}`);
         }
       }
 
@@ -168,9 +168,10 @@ const DefectForm: React.FC = () => {
       message.success(`缺陷 ${resp.key} 创建成功！`);
       resetDefect();
       clearDraft();
-    } catch (err: any) {
-      setLastResult({ success: false, error: err?.toString() || '创建失败' });
-      message.error('创建失败: ' + err?.toString());
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLastResult({ success: false, error: msg || '创建失败' });
+      message.error('创建失败: ' + msg);
     } finally {
       setCreating(false);
     }
